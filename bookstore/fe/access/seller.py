@@ -52,3 +52,42 @@ class Seller:
         headers = {"token": self.token}
         r = requests.post(url, headers=headers, json=json)
         return r.status_code
+
+    def query_one_store_orders(self, seller_id: str, store_id: str, password):
+        json = {
+            "user_id": seller_id,
+            "store_id": store_id,
+            "password": password
+        }
+
+        url = urljoin(self.url_prefix, "query_one_store_orders")
+        headers = {"token": self.token}
+        r = requests.post(url, headers=headers, json=json)
+        response_json = r.json()
+        return response_json.get("code"), response_json.get("message"), response_json.get("orders")
+    
+
+    def query_all_store_orders(self, seller_id: str, password):
+        json = {
+            "user_id": seller_id,
+            "password": password
+        }
+
+        url = urljoin(self.url_prefix, "query_all_store_orders")
+        headers = {"token": self.token}
+        r = requests.post(url, headers=headers, json=json)
+        response_json = r.json()
+        return response_json.get("code"), response_json.get("message"), response_json.get("orders")
+
+    def ship(self, seller_id: str, store_id: str, order_id: str) -> (int, str):  # type: ignore
+        json = {
+            "user_id": seller_id,
+            "store_id": store_id, 
+            "order_id": order_id,
+        }
+        url = urljoin(self.url_prefix, "ship")
+        headers = {"token": self.token}
+        r = requests.post(url, headers=headers, json=json)
+        response_json = r.json()
+        code=response_json.get("code")
+        return code

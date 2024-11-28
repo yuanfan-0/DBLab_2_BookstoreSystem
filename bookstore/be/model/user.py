@@ -1,7 +1,6 @@
 import jwt
 import time
 import logging
-import sqlite3 as sqlite
 from be.model import error
 from be.model import db_conn
 
@@ -19,7 +18,7 @@ def jwt_encode(user_id: str, terminal: str) -> str:
         key=user_id,
         algorithm="HS256",
     )
-    return encoded.decode("utf-8")
+    return encoded
 
 
 # decode a JWT to a json string like:
@@ -34,10 +33,10 @@ def jwt_decode(encoded_token, user_id: str) -> str:
 
 
 class User(db_conn.DBConn):
-    token_lifetime: int = 3600  # 3600 second
+    token_lifetime: int = 3600  # 3600 seconds
 
     def __init__(self):
-        db_conn.DBConn.__init__(self)
+        super().__init__()
 
     def __check_token(self, user_id, db_token, token) -> bool:
         try:
@@ -55,42 +54,51 @@ class User(db_conn.DBConn):
 
     def register(self, user_id: str, password: str):
         try:
+            # 检查是否已经存在相同的 user_id
+            if self.user_id_exist(user_id):
+                return error.error_exist_user_id(user_id)
+
             terminal = "terminal_{}".format(str(time.time()))
             token = jwt_encode(user_id, terminal)
-            self.conn.execute(
-                "INSERT into user(user_id, password, balance, token, terminal) "
-                "VALUES (?, ?, ?, ?, ?);",
-                (user_id, password, 0, token, terminal),
+            user_doc = {
+                "user_id": user_id,
+                "password": password,
+                "balance": 0,
+                "token": token,
+                "terminal": terminal
+            }
+            cursor = self.conn.cursor()
+            cursor.execute(
+                "INSERT INTO \"user\" (user_id, password, balance, token, terminal) VALUES (%s, %s, %s, %s, %s)",
+                (user_id, password, 0, token, terminal)
             )
             self.conn.commit()
-        except sqlite.Error:
+            cursor.close()
+        except Exception as e:
+            logging.error(f"Error during registration: {str(e)}")
             return error.error_exist_user_id(user_id)
         return 200, "ok"
 
-    def check_token(self, user_id: str, token: str) -> (int, str):
-        cursor = self.conn.execute("SELECT token from user where user_id=?", (user_id,))
-        row = cursor.fetchone()
-        if row is None:
+    def check_token(self, user_id: str, token: str) -> (int, str): # type: ignore
+        user_doc = self.db.user.find_one({"user_id": user_id})
+        if user_doc is None:
             return error.error_authorization_fail()
-        db_token = row[0]
+        db_token = user_doc.get("token")
         if not self.__check_token(user_id, db_token, token):
             return error.error_authorization_fail()
         return 200, "ok"
 
-    def check_password(self, user_id: str, password: str) -> (int, str):
-        cursor = self.conn.execute(
-            "SELECT password from user where user_id=?", (user_id,)
-        )
-        row = cursor.fetchone()
-        if row is None:
+    def check_password(self, user_id: str, password: str) -> (int, str): # type: ignore
+        user_doc = self.db.user.find_one({"user_id": user_id})
+        if user_doc is None:
             return error.error_authorization_fail()
-
-        if password != row[0]:
+        
+        if password != user_doc.get("password"):
             return error.error_authorization_fail()
 
         return 200, "ok"
 
-    def login(self, user_id: str, password: str, terminal: str) -> (int, str, str):
+    def login(self, user_id: str, password: str, terminal: str) -> (int, str, str): # type: ignore
         token = ""
         try:
             code, message = self.check_password(user_id, password)
@@ -98,20 +106,20 @@ class User(db_conn.DBConn):
                 return code, message, ""
 
             token = jwt_encode(user_id, terminal)
-            cursor = self.conn.execute(
-                "UPDATE user set token= ? , terminal = ? where user_id = ?",
-                (token, terminal, user_id),
+            cursor = self.conn.cursor()
+            cursor.execute(
+                "UPDATE \"user\" SET token = %s, terminal = %s WHERE user_id = %s",
+                (token, terminal, user_id)
             )
+            self.conn.commit()
+            cursor.close()
             if cursor.rowcount == 0:
                 return error.error_authorization_fail() + ("",)
-            self.conn.commit()
-        except sqlite.Error as e:
+        except Exception as e:
             return 528, "{}".format(str(e)), ""
-        except BaseException as e:
-            return 530, "{}".format(str(e)), ""
         return 200, "ok", token
-
-    def logout(self, user_id: str, token: str) -> bool:
+ 
+    def logout(self, user_id: str, token: str) -> (int, str): # type: ignore
         try:
             code, message = self.check_token(user_id, token)
             if code != 200:
@@ -120,40 +128,41 @@ class User(db_conn.DBConn):
             terminal = "terminal_{}".format(str(time.time()))
             dummy_token = jwt_encode(user_id, terminal)
 
-            cursor = self.conn.execute(
-                "UPDATE user SET token = ?, terminal = ? WHERE user_id=?",
-                (dummy_token, terminal, user_id),
+            cursor = self.conn.cursor()
+            cursor.execute(
+                "UPDATE \"user\" SET token = %s, terminal = %s WHERE user_id = %s",
+                (dummy_token, terminal, user_id)
             )
+            self.conn.commit()
+            cursor.close()
             if cursor.rowcount == 0:
                 return error.error_authorization_fail()
-
-            self.conn.commit()
-        except sqlite.Error as e:
+        except Exception as e:
             return 528, "{}".format(str(e))
-        except BaseException as e:
-            return 530, "{}".format(str(e))
         return 200, "ok"
 
-    def unregister(self, user_id: str, password: str) -> (int, str):
+    def unregister(self, user_id: str, password: str) -> (int, str): # type: ignore
         try:
             code, message = self.check_password(user_id, password)
             if code != 200:
                 return code, message
 
-            cursor = self.conn.execute("DELETE from user where user_id=?", (user_id,))
-            if cursor.rowcount == 1:
-                self.conn.commit()
-            else:
+            cursor = self.conn.cursor()
+            cursor.execute(
+                "DELETE FROM \"user\" WHERE user_id = %s",
+                (user_id,)
+            )
+            self.conn.commit()
+            cursor.close()
+            if cursor.rowcount == 0:
                 return error.error_authorization_fail()
-        except sqlite.Error as e:
+        except Exception as e:
             return 528, "{}".format(str(e))
-        except BaseException as e:
-            return 530, "{}".format(str(e))
         return 200, "ok"
 
     def change_password(
         self, user_id: str, old_password: str, new_password: str
-    ) -> bool:
+    ) -> (int, str): # type: ignore
         try:
             code, message = self.check_password(user_id, old_password)
             if code != 200:
@@ -161,16 +170,15 @@ class User(db_conn.DBConn):
 
             terminal = "terminal_{}".format(str(time.time()))
             token = jwt_encode(user_id, terminal)
-            cursor = self.conn.execute(
-                "UPDATE user set password = ?, token= ? , terminal = ? where user_id = ?",
-                (new_password, token, terminal, user_id),
+            cursor = self.conn.cursor()
+            cursor.execute(
+                "UPDATE \"user\" SET password = %s, token = %s, terminal = %s WHERE user_id = %s",
+                (new_password, token, terminal, user_id)
             )
+            self.conn.commit()
+            cursor.close()
             if cursor.rowcount == 0:
                 return error.error_authorization_fail()
-
-            self.conn.commit()
-        except sqlite.Error as e:
+        except Exception as e:
             return 528, "{}".format(str(e))
-        except BaseException as e:
-            return 530, "{}".format(str(e))
         return 200, "ok"
