@@ -55,7 +55,13 @@ class Store:
                 CREATE TABLE IF NOT EXISTS new_order (
                     order_id TEXT PRIMARY KEY,
                     user_id TEXT,
-                    store_id TEXT
+                    store_id TEXT,
+                    is_paid BOOLEAN NOT NULL,
+                    is_shipped BOOLEAN NOT NULL,
+                    is_received BOOLEAN NOT NULL,
+                    order_completed BOOLEAN NOT NULL,
+                    status TEXT NOT NULL,
+                    created_time TIMESTAMP NOT NULL
                 )
             """)
 

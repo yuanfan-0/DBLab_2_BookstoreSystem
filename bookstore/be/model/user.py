@@ -60,13 +60,7 @@ class User(db_conn.DBConn):
 
             terminal = "terminal_{}".format(str(time.time()))
             token = jwt_encode(user_id, terminal)
-            user_doc = {
-                "user_id": user_id,
-                "password": password,
-                "balance": 0,
-                "token": token,
-                "terminal": terminal
-            }
+
             cursor = self.conn.cursor()
             cursor.execute(
                 "INSERT INTO \"user\" (user_id, password, balance, token, terminal) VALUES (%s, %s, %s, %s, %s)",
@@ -80,20 +74,39 @@ class User(db_conn.DBConn):
         return 200, "ok"
 
     def check_token(self, user_id: str, token: str) -> (int, str): # type: ignore
-        user_doc = self.db.user.find_one({"user_id": user_id})
-        if user_doc is None:
+
+        cursor = self.conn.cursor()
+        cursor.execute(
+            "SELECT token FROM \"user\" WHERE user_id = %s",
+            (user_id,),
+        )
+        row = cursor.fetchone()
+        cursor.close()
+
+        if row is None:
             return error.error_authorization_fail()
-        db_token = user_doc.get("token")
+
+        db_token = row[0]
         if not self.__check_token(user_id, db_token, token):
             return error.error_authorization_fail()
+
         return 200, "ok"
 
     def check_password(self, user_id: str, password: str) -> (int, str): # type: ignore
-        user_doc = self.db.user.find_one({"user_id": user_id})
-        if user_doc is None:
+
+        # 检查用户密码是否正确
+        cursor = self.conn.cursor()
+        cursor.execute(
+            "SELECT password FROM \"user\" WHERE user_id = %s",
+            (user_id,),
+        )
+        row = cursor.fetchone()
+        cursor.close()
+
+        if row is None:
             return error.error_authorization_fail()
-        
-        if password != user_doc.get("password"):
+
+        if row[0] != password:
             return error.error_authorization_fail()
 
         return 200, "ok"
@@ -116,7 +129,7 @@ class User(db_conn.DBConn):
             if cursor.rowcount == 0:
                 return error.error_authorization_fail() + ("",)
         except Exception as e:
-            return 528, "{}".format(str(e)), ""
+            return 530, "{}".format(str(e)), ""
         return 200, "ok", token
  
     def logout(self, user_id: str, token: str) -> (int, str): # type: ignore
@@ -138,7 +151,7 @@ class User(db_conn.DBConn):
             if cursor.rowcount == 0:
                 return error.error_authorization_fail()
         except Exception as e:
-            return 528, "{}".format(str(e))
+            return 530, "{}".format(str(e))
         return 200, "ok"
 
     def unregister(self, user_id: str, password: str) -> (int, str): # type: ignore
@@ -157,7 +170,7 @@ class User(db_conn.DBConn):
             if cursor.rowcount == 0:
                 return error.error_authorization_fail()
         except Exception as e:
-            return 528, "{}".format(str(e))
+            return 530, "{}".format(str(e))
         return 200, "ok"
 
     def change_password(
@@ -180,5 +193,5 @@ class User(db_conn.DBConn):
             if cursor.rowcount == 0:
                 return error.error_authorization_fail()
         except Exception as e:
-            return 528, "{}".format(str(e))
+            return 530, "{}".format(str(e))
         return 200, "ok"

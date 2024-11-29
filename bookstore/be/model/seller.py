@@ -144,7 +144,7 @@ class Seller(db_conn.DBConn):
             )
             user = cursor.fetchone()
             cursor.close()
-            if user is None or user['password'] != password:
+            if user is None or user[0] != password:
                 return error.error_authorization_fail() + ("None",)
 
             # 查找用户是否存在该商店
@@ -185,7 +185,7 @@ class Seller(db_conn.DBConn):
             )
             user = cursor.fetchone()
             cursor.close()
-            if user is None or user['password'] != password:
+            if user is None or user[0] != password:
                 return error.error_authorization_fail() + ("None",)
 
             # 查找用户的商店
@@ -203,7 +203,7 @@ class Seller(db_conn.DBConn):
 
             all_store_orders = {}
             for user_store in user_stores:
-                store_id = user_store['store_id']
+                store_id = user_store[0]
                 # 查找该商店的所有订单
                 cursor = self.conn.cursor()
                 cursor.execute(

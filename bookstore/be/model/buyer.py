@@ -66,9 +66,14 @@ class Buyer(db_conn.DBConn):
                 if store_item is None:
                     return error.error_non_exist_book_id(book_id) + (order_id,)
 
-                stock_level = store_item['stock_level']
-                book_info = json.loads(store_item['book_info'])
+                stock_level = store_item[0]
+                book_info = json.loads(store_item[1])
                 price = book_info.get("price")
+
+                print("--------------------------------------------")
+
+                print(f"stock_level:{stock_level}  count:{count}")
+                print("--------------------------------------------")
 
                 if stock_level < count:
                     return error.error_stock_level_low(book_id) + (order_id,)
@@ -108,7 +113,7 @@ class Buyer(db_conn.DBConn):
             if order is None:
                 return error.error_invalid_order_id(order_id)
 
-            buyer_id = order['user_id']
+            buyer_id = order[0]
 
             if buyer_id != user_id:
                 return error.error_authorization_fail()
@@ -118,10 +123,10 @@ class Buyer(db_conn.DBConn):
                 (buyer_id,)
             )
             user = cursor.fetchone()
-            if user is None or user['password'] != password:
+            if user is None or user[0] != password:
                 return error.error_authorization_fail()
 
-            if order.get('is_paid', False):
+            if order[1]:
                 return error.error_order_is_paid(order_id)
 
             cursor.execute(
@@ -129,9 +134,9 @@ class Buyer(db_conn.DBConn):
                 (order_id,)
             )
             order_details = cursor.fetchall()
-            total_price = sum(detail['count'] * detail['price'] for detail in order_details)
+            total_price = sum(detail[0] * detail[1] for detail in order_details)
 
-            if user['balance'] < total_price:
+            if user[1] < total_price:
                 return error.error_not_sufficient_funds(order_id)
 
             cursor.execute(
@@ -160,7 +165,7 @@ class Buyer(db_conn.DBConn):
             )
             order = cursor.fetchone()
 
-            buyer_id = order['user_id']
+            buyer_id = order[0]
 
             if buyer_id != user_id:
                 return error.error_authorization_fail()
@@ -170,30 +175,30 @@ class Buyer(db_conn.DBConn):
                 (buyer_id,)
             )
             user = cursor.fetchone()
-            if user is None or user['password'] != password:
+            if user is None or user[0] != password:
                 return error.error_authorization_fail()
 
-            if not order.get('is_paid', False):
+            if not order[2]:
                 return error.error_not_be_paid(order_id)
 
-            if order.get('is_received', False):
+            if order[3]:
                 return error.error_order_is_confirmed(order_id)
 
-            store_id = order['store_id']
+            store_id = order[1]
 
             cursor.execute(
                 "SELECT user_id FROM user_store WHERE store_id = %s",
                 (store_id,)
             )
             seller = cursor.fetchone()
-            seller_id = seller['user_id']
+            seller_id = seller[0]
 
             cursor.execute(
                 "SELECT count, price FROM new_order_detail WHERE order_id = %s",
                 (order_id,)
             )
             order_details = cursor.fetchall()
-            total_price = sum(detail['count'] * detail['price'] for detail in order_details)
+            total_price = sum(detail[0] * detail[1] for detail in order_details)
 
             cursor.execute(
                 "UPDATE \"user\" SET balance = balance + %s WHERE user_id = %s",
@@ -220,7 +225,7 @@ class Buyer(db_conn.DBConn):
                 (user_id,)
             )
             user = cursor.fetchone()
-            if user is None or user['password'] != password:
+            if user is None or user[0] != password:
                 return error.error_authorization_fail()
 
             cursor.execute(
@@ -246,7 +251,7 @@ class Buyer(db_conn.DBConn):
                 (user_id,)
             )
             user = cursor.fetchone()
-            if user['password'] != password:
+            if user[0] != password:
                 return error.error_authorization_fail() + ("None",)
 
             cursor.execute(
@@ -257,7 +262,7 @@ class Buyer(db_conn.DBConn):
             if order is None:
                 return error.error_invalid_order_id(order_id) + ("None",)
 
-            order_status = self.ORDER_STATUS[order['status']]
+            order_status = self.ORDER_STATUS[order[0]]
             cursor.close()
             return 200, "ok", order_status
         except Exception as e:
@@ -275,7 +280,7 @@ class Buyer(db_conn.DBConn):
                 (user_id,)
             )
             user = cursor.fetchone()
-            if user['password'] != password:
+            if user[0] != password:
                 return error.error_authorization_fail() + ("None",)
 
             cursor.execute(
@@ -300,7 +305,7 @@ class Buyer(db_conn.DBConn):
                 (user_id,)
             )
             user = cursor.fetchone()
-            if user['password'] != password:
+            if user[0] != password:
                 return error.error_authorization_fail()
 
             cursor.execute(
@@ -311,7 +316,7 @@ class Buyer(db_conn.DBConn):
             if order is None:
                 return error.error_invalid_order_id(order_id)
 
-            if order.get('is_paid', False):
+            if order[0]:
                 return error.error_cannot_be_canceled(order_id)
 
             cursor.execute(
@@ -327,7 +332,7 @@ class Buyer(db_conn.DBConn):
             for detail in order_details:
                 cursor.execute(
                     "UPDATE store SET stock_level = stock_level + %s WHERE store_id = %s AND book_id = %s",
-                    (detail['count'], order['store_id'], detail['book_id'])
+                    (detail[1], order[1], detail[0])
                 )
 
             self.conn.commit()
@@ -348,11 +353,11 @@ class Buyer(db_conn.DBConn):
             pending_orders = cursor.fetchall()
 
             for order in pending_orders:
-                created_time = order['created_time']
+                created_time = order[1]
                 time_diff = abs(now - created_time)
 
                 if time_diff < timedelta(seconds=5):
-                    order_id = order['order_id']
+                    order_id = order[0]
                     cursor.execute(
                         "UPDATE new_order SET status = 'canceled' WHERE order_id = %s",
                         (order_id,)
@@ -366,7 +371,7 @@ class Buyer(db_conn.DBConn):
                     for detail in order_details:
                         cursor.execute(
                             "UPDATE store SET stock_level = stock_level + %s WHERE store_id = %s AND book_id = %s",
-                            (detail['count'], order['store_id'], detail['book_id'])
+                            (detail[1], order[2], detail[0])
                         )
 
             self.conn.commit()
