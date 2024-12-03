@@ -6,14 +6,6 @@ from be.model import db_conn
 from be.model import error
 
 class Buyer(db_conn.DBConn):
-    ORDER_STATUS = {
-        "pending": "待支付",
-        "paid": "已支付",
-        "shipped": "已发货",
-        "received": "已收货",
-        "completed": "已完成",
-        "canceled": "已取消"
-    }
 
     def __init__(self):
         super().__init__()

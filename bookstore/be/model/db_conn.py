@@ -4,6 +4,14 @@ import logging
 class DBConn:
     def __init__(self):
         self.conn, self.mongodb = store.get_db_conn()
+        self.ORDER_STATUS = {
+            "pending": "待支付",
+            "paid": "已支付",
+            "shipped": "已发货",
+            "received": "已收货",
+            "completed": "已完成",
+            "canceled": "已取消"
+        }
 
     def user_id_exist(self, user_id):
         try:
@@ -54,6 +62,40 @@ class DBConn:
             row = cursor.fetchone()
             cursor.close()
             return row is not None
+        except Exception as e:
+            logging.error(f"Error checking order_id existence: {e}")
+            return False
+
+    def order_is_paid(self,order_id):
+        # 查询order是否被支付
+        try:
+            cursor = self.conn.cursor()
+            cursor.execute(
+                "SELECT is_paid FROM new_order WHERE order_id = %s;", (order_id,)
+            )
+            row = cursor.fetchone()
+            cursor.close()
+            if row is not None:
+                if row[0]:
+                    return True
+            return False
+        except Exception as e:
+            logging.error(f"Error checking order_id existence: {e}")
+            return False
+    
+    def order_is_shipped(self,order_id):
+        # 查询order是否被发货
+        try:
+            cursor = self.conn.cursor()
+            cursor.execute(
+                "SELECT is_shipped FROM new_order WHERE order_id = %s;", (order_id,)
+            )
+            row = cursor.fetchone()
+            cursor.close()
+            if row is not None:
+                if row[0]:
+                    return True
+            return False
         except Exception as e:
             logging.error(f"Error checking order_id existence: {e}")
             return False
