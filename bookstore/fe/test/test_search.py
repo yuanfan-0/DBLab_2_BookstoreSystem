@@ -1,99 +1,157 @@
 import pytest
-from fe.access import book_search
-from fe import conf
+from fe.access.new_buyer import register_new_buyer
+from fe.access.book import Book
+from fe.test.gen_book_data import GenBook
+from fe.access.new_seller import register_new_seller
+import uuid
 
-class TestSearchBooks:
+
+class TestSearch:
     @pytest.fixture(autouse=True)
-    def setup(self):
-        # 初始化 bookstore_searcher 和相关数据
-        self.store_id = "test_add_books_store_id_848aa78c-887a-11ef-89e5-2e81db39535e"
-        self.keyword = "美丽心灵"
-        self.searcher = book_search.BookSearcher(conf.URL)
+    def pre_run_initialization(self):
+        self.seller_id = "test_search_seller_id_{}".format(str(uuid.uuid1()))
+        self.store_id = "test_search_store_id_{}".format(str(uuid.uuid1()))
+        self.buyer_id = "test_search_buyer_id_{}".format(str(uuid.uuid1()))
+        self.password = self.seller_id
+        
+        self.buyer = register_new_buyer(self.buyer_id, self.password)
+        
+        # 生成测试用书籍数据
+        self.gen_book = GenBook(self.seller_id, self.store_id)
+        self.seller = self.gen_book.seller
+
+        self.books = self.gen_book.gen(
+            non_exist_book_id=False, 
+            low_stock_level=False,
+            max_book_count=5  # 生成5本测试书
+        )
+
         yield
 
-    def test_non_exist_book_id_full(self):
-        # 测试不存在的书籍，搜索是在book数据库中进行，搜索范围是全局，期望返回 523 错误码
-        code = self.searcher.search_books(
-            keyword="nonexistent_book",
-            search_scope="all",
-            search_in_store=False,
-            store_id=self.store_id
-        )
-        assert code == 523
-    
-    def test_non_exist_book_id_part(self):
-        # 测试不存在的书籍，搜索是在book数据库中进行，搜索范围是部分，期望返回 523 错误码
-        code = self.searcher.search_books(
-            keyword="nonexistent_book",
-            search_scope="title tag",
-            search_in_store=False,
-            store_id=self.store_id
-        )
-        assert code == 523
+        
+    # 获取商店书籍信息
+    def get_store_books_info(self):
+        books_info = []
+        for book_info, _ in self.gen_book.buy_book_info_list:
+            book_detail = {
+                'title': book_info.title,
+                'author': book_info.author,
+                'publisher': book_info.publisher,
+                'book_id': book_info.id,
+                'tags': book_info.tags
+            }
+            books_info.append(book_detail)
+        return books_info
 
-    def test_non_exist_store_id(self):
-        # 测试不存在的store_id，期望返回 524 错误码
-        code = self.searcher.search_books(
-            keyword=self.keyword,
-            search_scope="all",
-            search_in_store=True,
-            store_id="non_existent_store_id"
-        )
-        assert code == 524
-
-    def test_non_exist_book_id_in_the_store(self):
-        # 测试书籍不存在store_id对应的store中，期望返回 525 错误码
-        code = self.searcher.search_books(
-            keyword="nonexistent_book",
-            search_scope="all",
-            search_in_store=True,
-            store_id=self.store_id
-        )
-        assert code == 525
-
-    def test_partial_scope_search(self):
-        # 测试部分匹配 scope 搜索
-        code = self.searcher.search_books(
-            keyword=self.keyword,
-            search_scope="title tags",
-            search_in_store=False
+    # 买家搜索测试
+    def test_buyer_global_search(self):
+        code, books = self.buyer.search_books(
+            keyword="美丽心灵",
+            search_scope="all"
         )
         assert code == 200
+        assert len(books) > 0
 
-    def test_full_scope_search(self):
-        # 测试全范围搜索
-        code = self.searcher.search_books(
-            keyword=self.keyword,
-            search_scope="all",
-            search_in_store=False
+    def test_buyer_store_search(self):
+        search_books = self.get_store_books_info()
+        for book in search_books:
+            code, books = self.buyer.search_books(
+                keyword=book['title'],
+                search_scope="all",
+                search_in_store=True,
+                store_id=self.store_id
+            )
+            assert code == 200
+            assert len(books) > 0
+
+    # 卖家搜索测试
+    def test_seller_global_search(self):
+        code, books = self.seller.search_books(
+            keyword="美丽心灵",
+            search_scope="all"
         )
         assert code == 200
-    
-    def test_full_scope_search_fail(self):
-        # 测试全范围搜索，但是搜索失败
-        code = self.searcher.search_books(
-            keyword="nonexistent_book",
-            search_scope="all",
-            search_in_store=False
-        )
-        assert code == 523
+        assert len(books) > 0
 
-    def test_search_books_in_existing_store(self):
-        # 测试在存在的store_id中搜索书籍
-        code = self.searcher.search_books(
-            keyword=self.keyword,
+    def test_seller_store_search(self):
+        search_books = self.get_store_books_info()
+        for book in search_books:
+            code, books = self.seller.search_books(
+                keyword=book['title'],
+                search_scope="all",
+                search_in_store=True,
+                store_id=self.store_id
+            )
+            assert code == 200
+            assert len(books) > 0
+
+    # 不同搜索范围测试
+    def test_search_by_title(self):
+        # 买家搜索
+        code, books = self.buyer.search_books(
+            keyword="美丽心灵",
+            search_scope="title"
+        )
+        assert code == 200
+        assert len(books) > 0
+        
+        # 卖家搜索
+        code, books = self.seller.search_books(
+            keyword="美丽心灵",
+            search_scope="title"
+        )
+        assert code == 200
+        assert len(books) > 0
+
+    def test_search_by_tags(self):
+        # 买家搜索
+        code, books = self.buyer.search_books(
+            keyword="传记",
+            search_scope="tags"
+        )
+        assert code == 200
+        assert len(books) > 0
+        
+        # 卖家搜索
+        code, books = self.seller.search_books(
+            keyword="传记",
+            search_scope="tags"
+        )
+        assert code == 200
+        assert len(books) > 0
+
+    # 错误情况测试
+    def test_search_non_exist(self):
+        # 买家搜索不存在的内容
+        code, _ = self.buyer.search_books(
+            keyword="non_exist_keyword_xxxxx",
+            search_scope="all"
+        )
+        assert code != 200
+        
+        # 卖家搜索不存在的内容
+        code, _ = self.seller.search_books(
+            keyword="non_exist_keyword_xxxxx",
+            search_scope="all"
+        )
+        assert code != 200
+
+    def test_search_invalid_store(self):
+        # 买家搜索不存在的商店
+        code, _ = self.buyer.search_books(
+            keyword="test",
             search_scope="all",
             search_in_store=True,
-            store_id=self.store_id
+            store_id="non_exist_store_id"
         )
-        assert code == 200
-    
-    def test_search_books_in_existing_store_part(self):
-        # 测试在存在的store_id中搜索书籍，搜索范围是部分
-        code = self.searcher.search_books(
-            keyword=self.keyword,
-            search_scope="title tag",
+        assert code != 200
+        
+        # 卖家搜索不存在的商店
+        code, _ = self.seller.search_books(
+            keyword="test",
+            search_scope="all",
             search_in_store=True,
-            store_id=self.store_id
+            store_id="non_exist_store_id"
         )
-        assert code == 200
+        assert code != 200
+

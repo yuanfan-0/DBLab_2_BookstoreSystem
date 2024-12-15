@@ -12,6 +12,8 @@ class Store:
 
         # 初始化 PostgreSQL 表
         self.init_tables()
+        # 初始化 PostgreSQL 索引
+        self.init_indexes()
 
         # 连接 MongoDB 数据库
         self.client = MongoClient(mongodb_url)
@@ -79,6 +81,25 @@ class Store:
             self.pg_conn.commit()
         except psycopg2.Error as e:
             logging.error(e)
+            self.pg_conn.rollback()
+
+    def init_indexes(self):
+        try:
+            # 创建PostgreSQL索引
+            self.pg_cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_store_book_id 
+                ON store(book_id);
+                
+                CREATE INDEX IF NOT EXISTS idx_store_store_book 
+                ON store(store_id, book_id);
+                
+                CREATE INDEX IF NOT EXISTS idx_store_book_info_gin 
+                ON store USING gin(to_tsvector('chinese', book_info));
+            """)
+            
+            self.pg_conn.commit()
+        except psycopg2.Error as e:
+            logging.error(f"Error creating PostgreSQL indexes: {e}")
             self.pg_conn.rollback()
 
     def get_db_conn(self):

@@ -2,7 +2,9 @@ from flask import Blueprint
 from flask import request
 from flask import jsonify
 from be.model import seller
+from be.model import user
 import json
+
 
 bp_seller = Blueprint("seller", __name__, url_prefix="/seller")
 
@@ -72,3 +74,49 @@ def query_all_store_orders():
     code, message, orders = s.query_all_store_orders(user_id, password)
 
     return jsonify({"message": message, "code": code, "orders": orders})
+
+
+@bp_seller.route("/search", methods=["POST"])
+def search_books():
+    json_obj = request.get_json()
+    
+    keyword = json_obj.get("keyword", "")
+    search_scope = json_obj.get("search_scope", "all")
+    search_in_store = json_obj.get("search_in_store", False)
+    store_id = json_obj.get("store_id", None)
+
+    u = user.User()
+    code, books = u.search_books(
+        keyword=keyword,
+        search_scope=search_scope,
+        search_in_store=search_in_store,
+        store_id=store_id
+    )
+
+    # 将查询结果转换为可序列化的格式
+    if code == 200:
+        books_list = []
+        for book in books:
+            book_dict = {
+                'id': book[0],
+                'title': book[1],
+                'author': book[2],
+                'publisher': book[3],
+                'original_title': book[4],
+                'translator': book[5],
+                'pub_year': book[6],
+                'pages': book[7],
+                'price': book[8],
+                'currency_unit': book[9],
+                'binding': book[10],
+                'isbn': book[11],
+                'author_intro': book[12],
+                'book_intro': book[13],
+                'content': book[14],
+                'tags': book[15]
+            }
+            books_list.append(book_dict)
+        return jsonify({"code": code, "books": books_list}), 200
+    else:
+        return jsonify({"code": code, "message": books}), code
+

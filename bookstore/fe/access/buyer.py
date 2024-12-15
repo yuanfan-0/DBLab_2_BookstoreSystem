@@ -7,6 +7,7 @@ from fe.access.auth import Auth
 class Buyer:
     def __init__(self, url_prefix, user_id, password):
         self.url_prefix = urljoin(url_prefix, "buyer/")
+
         self.user_id = user_id
         self.password = password
         self.token = ""
@@ -86,5 +87,18 @@ class Buyer:
         r = requests.post(url, headers=headers)
         response_json = r.json()
         return response_json.get("code"), response_json.get("message")
+    
+
+    def search_books(self, keyword: str, search_scope: str = "all", 
+                search_in_store: bool = False, store_id: str = None) -> (int, list): # type: ignore
+        json = {
+            "keyword": keyword,
+            "search_scope": search_scope,
+            "search_in_store": search_in_store,
+            "store_id": store_id
+        }
+        url = urljoin(self.url_prefix, "search")
+        r = requests.post(url, json=json)
+        return r.status_code, r.json().get("books", [])
 
   
