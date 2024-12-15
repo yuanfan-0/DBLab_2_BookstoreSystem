@@ -41,53 +41,51 @@ class Buyer(db_conn.DBConn):
     def new_order(self, user_id: str, store_id: str, id_and_count: [(str, int)]) -> (int, str, str): # type: ignore
         order_id = ""
         try:
-            if not self.user_id_exist(user_id):
-                return error.error_non_exist_user_id(user_id) + (order_id,)
-            if not self.store_id_exist(store_id):
-                return error.error_non_exist_store_id(store_id) + (order_id,)
+            with self.transaction() as tx:
+                if not self.user_id_exist(user_id):
+                    return error.error_non_exist_user_id(user_id) + (order_id,)
+                if not self.store_id_exist(store_id):
+                    return error.error_non_exist_store_id(store_id) + (order_id,)
 
-            uid = "{}_{}_{}".format(user_id, store_id, str(uuid.uuid1()))
+                uid = "{}_{}_{}".format(user_id, store_id, str(uuid.uuid1()))
+                
+                cursor = self.conn.cursor()
+                
+                for book_id, count in id_and_count:
+                    cursor.execute(
+                        "SELECT stock_level, book_info FROM store WHERE store_id = %s AND book_id = %s FOR UPDATE",
+                        (store_id, book_id)
+                    )
+                    store_item = cursor.fetchone()
+                    if store_item is None:
+                        return error.error_non_exist_book_id(book_id) + (order_id,)
 
-            cursor = self.conn.cursor()
-            for book_id, count in id_and_count:
+                    stock_level = store_item[0]
+                    book_info = json.loads(store_item[1])
+                    price = book_info.get("price")
+
+                    if stock_level < count:
+                        return error.error_stock_level_low(book_id) + (order_id,)
+
+                    cursor.execute(
+                        "UPDATE store SET stock_level = stock_level - %s WHERE store_id = %s AND book_id = %s",
+                        (count, store_id, book_id)
+                    )
+
+                    cursor.execute(
+                        "INSERT INTO new_order_detail (order_id, book_id, count, price) VALUES (%s, %s, %s, %s)",
+                        (uid, book_id, count, price)
+                    )
+
                 cursor.execute(
-                    "SELECT stock_level, book_info FROM store WHERE store_id = %s AND book_id = %s",
-                    (store_id, book_id)
+                    "INSERT INTO new_order (order_id, store_id, user_id, is_paid, is_shipped, is_received, order_completed, status, created_time) "
+                    "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                    (uid, store_id, user_id, False, False, False, False, "pending", datetime.utcnow())
                 )
-                store_item = cursor.fetchone()
-                if store_item is None:
-                    return error.error_non_exist_book_id(book_id) + (order_id,)
+                
+                cursor.close()
+                order_id = uid
 
-                stock_level = store_item[0]
-                book_info = json.loads(store_item[1])
-                price = book_info.get("price")
-
-                print("--------------------------------------------")
-
-                print(f"stock_level:{stock_level}  count:{count}")
-                print("--------------------------------------------")
-
-                if stock_level < count:
-                    return error.error_stock_level_low(book_id) + (order_id,)
-
-                cursor.execute(
-                    "UPDATE store SET stock_level = stock_level - %s WHERE store_id = %s AND book_id = %s",
-                    (count, store_id, book_id)
-                )
-
-                cursor.execute(
-                    "INSERT INTO new_order_detail (order_id, book_id, count, price) VALUES (%s, %s, %s, %s)",
-                    (uid, book_id, count, price)
-                )
-
-            cursor.execute(
-                "INSERT INTO new_order (order_id, store_id, user_id, is_paid, is_shipped, is_received, order_completed, status, created_time) "
-                "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
-                (uid, store_id, user_id, False, False, False, False, "pending", datetime.utcnow())
-            )
-            self.conn.commit()
-            cursor.close()
-            order_id = uid
         except Exception as e:
             logging.error(f"Error creating new order: {e}")
             return 530, "{}".format(str(e)), ""
@@ -96,113 +94,111 @@ class Buyer(db_conn.DBConn):
 
     def pay_to_platform(self, user_id: str, password: str, order_id: str) -> (int, str): # type: ignore
         try:
-            cursor = self.conn.cursor()
-            cursor.execute(
-                "SELECT user_id, is_paid FROM new_order WHERE order_id = %s",
-                (order_id,)
-            )
-            order = cursor.fetchone()
-            if order is None:
-                return error.error_invalid_order_id(order_id)
+            with self.transaction() as tx:
+                cursor = self.conn.cursor()
+                cursor.execute(
+                    "SELECT user_id, is_paid FROM new_order WHERE order_id = %s FOR UPDATE",
+                    (order_id,)
+                )
+                order = cursor.fetchone()
+                if order is None:
+                    return error.error_invalid_order_id(order_id)
 
-            buyer_id = order[0]
+                buyer_id = order[0]
+                if buyer_id != user_id:
+                    return error.error_authorization_fail()
 
-            if buyer_id != user_id:
-                return error.error_authorization_fail()
+                cursor.execute(
+                    "SELECT password, balance FROM \"user\" WHERE user_id = %s FOR UPDATE",
+                    (buyer_id,)
+                )
+                user = cursor.fetchone()
+                if user is None or user[0] != password:
+                    return error.error_authorization_fail()
 
-            cursor.execute(
-                "SELECT password, balance FROM \"user\" WHERE user_id = %s",
-                (buyer_id,)
-            )
-            user = cursor.fetchone()
-            if user is None or user[0] != password:
-                return error.error_authorization_fail()
+                if order[1]:
+                    return error.error_order_is_paid(order_id)
 
-            if order[1]:
-                return error.error_order_is_paid(order_id)
+                cursor.execute(
+                    "SELECT count, price FROM new_order_detail WHERE order_id = %s",
+                    (order_id,)
+                )
+                total_price = sum(detail[0] * detail[1] for detail in cursor.fetchall())
 
-            cursor.execute(
-                "SELECT count, price FROM new_order_detail WHERE order_id = %s",
-                (order_id,)
-            )
-            order_details = cursor.fetchall()
-            total_price = sum(detail[0] * detail[1] for detail in order_details)
+                if user[1] < total_price:
+                    return error.error_not_sufficient_funds(order_id)
 
-            if user[1] < total_price:
-                return error.error_not_sufficient_funds(order_id)
+                cursor.execute(
+                    "UPDATE \"user\" SET balance = balance - %s WHERE user_id = %s",
+                    (total_price, buyer_id)
+                )
 
-            cursor.execute(
-                "UPDATE \"user\" SET balance = balance - %s WHERE user_id = %s",
-                (total_price, buyer_id)
-            )
-
-            cursor.execute(
-                "UPDATE new_order SET is_paid = TRUE WHERE order_id = %s",
-                (order_id,)
-            )
-            self.conn.commit()
-            cursor.close()
+                cursor.execute(
+                    "UPDATE new_order SET is_paid = TRUE WHERE order_id = %s",
+                    (order_id,)
+                )
+                cursor.close()
+                return 200, "ok"
         except Exception as e:
             logging.error(f"Error paying to platform: {e}")
             return 530, "{}".format(str(e))
 
-        return 200, "ok"
-
     def confirm_receipt_and_pay_to_seller(self, user_id: str, password: str, order_id: str) -> (int, str): # type: ignore
         try:
-            cursor = self.conn.cursor()
-            cursor.execute(
-                "SELECT user_id, store_id, is_paid, is_received FROM new_order WHERE order_id = %s",
-                (order_id,)
-            )
-            order = cursor.fetchone()
+            with self.transaction() as tx:
+                cursor = self.conn.cursor()
+                cursor.execute(
+                    "SELECT user_id, store_id, is_paid, is_received FROM new_order WHERE order_id = %s",
+                    (order_id,)
+                )
+                order = cursor.fetchone()
 
-            buyer_id = order[0]
+                buyer_id = order[0]
 
-            if buyer_id != user_id:
-                return error.error_authorization_fail()
+                if buyer_id != user_id:
+                    return error.error_authorization_fail()
 
-            cursor.execute(
-                "SELECT password FROM \"user\" WHERE user_id = %s",
-                (buyer_id,)
-            )
-            user = cursor.fetchone()
-            if user is None or user[0] != password:
-                return error.error_authorization_fail()
+                cursor.execute(
+                    "SELECT password FROM \"user\" WHERE user_id = %s",
+                    (buyer_id,)
+                )
+                user = cursor.fetchone()
+                if user is None or user[0] != password:
+                    return error.error_authorization_fail()
 
-            if not order[2]:
-                return error.error_not_be_paid(order_id)
+                if not order[2]:
+                    return error.error_not_be_paid(order_id)
 
-            if order[3]:
-                return error.error_order_is_confirmed(order_id)
+                if order[3]:
+                    return error.error_order_is_confirmed(order_id)
 
-            store_id = order[1]
+                store_id = order[1]
 
-            cursor.execute(
-                "SELECT user_id FROM user_store WHERE store_id = %s",
-                (store_id,)
-            )
-            seller = cursor.fetchone()
-            seller_id = seller[0]
+                cursor.execute(
+                    "SELECT user_id FROM user_store WHERE store_id = %s",
+                    (store_id,)
+                )
+                seller = cursor.fetchone()
+                seller_id = seller[0]
 
-            cursor.execute(
-                "SELECT count, price FROM new_order_detail WHERE order_id = %s",
-                (order_id,)
-            )
-            order_details = cursor.fetchall()
-            total_price = sum(detail[0] * detail[1] for detail in order_details)
+                cursor.execute(
+                    "SELECT count, price FROM new_order_detail WHERE order_id = %s",
+                    (order_id,)
+                )
+                order_details = cursor.fetchall()
+                total_price = sum(detail[0] * detail[1] for detail in order_details)
 
-            cursor.execute(
-                "UPDATE \"user\" SET balance = balance + %s WHERE user_id = %s",
-                (total_price, seller_id)
-            )
+                cursor.execute(
+                    "UPDATE \"user\" SET balance = balance + %s WHERE user_id = %s",
+                    (total_price, seller_id)
+                )
 
-            cursor.execute(
-                "UPDATE new_order SET is_received = TRUE, order_completed = TRUE WHERE order_id = %s",
-                (order_id,)
-            )
-            self.conn.commit()
-            cursor.close()
+                cursor.execute(
+                    "UPDATE new_order SET is_received = TRUE, order_completed = TRUE WHERE order_id = %s",
+                    (order_id,)
+                )
+                self.conn.commit()
+                cursor.close()
         except Exception as e:
             logging.error(f"Error confirming receipt and paying to seller: {e}")
             return 530, "{}".format(str(e))
@@ -288,52 +284,50 @@ class Buyer(db_conn.DBConn):
 
     def cancel_order(self, user_id: str, order_id: str, password) -> (int, str):   # type: ignore
         try:
-            if not self.user_id_exist(user_id):
-                return error.error_non_exist_user_id(user_id)
+            with self.transaction():
+                if not self.user_id_exist(user_id):
+                    return error.error_non_exist_user_id(user_id)
 
-            cursor = self.conn.cursor()
-            cursor.execute(
-                "SELECT password FROM \"user\" WHERE user_id = %s",
-                (user_id,)
-            )
-            user = cursor.fetchone()
-            if user[0] != password:
-                return error.error_authorization_fail()
-
-            cursor.execute(
-                "SELECT is_paid, store_id FROM new_order WHERE order_id = %s AND user_id = %s",
-                (order_id, user_id)
-            )
-            order = cursor.fetchone()
-            if order is None:
-                return error.error_invalid_order_id(order_id)
-
-            if order[0]:
-                return error.error_cannot_be_canceled(order_id)
-
-            cursor.execute(
-                "UPDATE new_order SET status = 'canceled' WHERE order_id = %s",
-                (order_id,)
-            )
-
-            cursor.execute(
-                "SELECT book_id, count FROM new_order_detail WHERE order_id = %s",
-                (order_id,)
-            )
-            order_details = cursor.fetchall()
-            for detail in order_details:
+                cursor = self.conn.cursor()
                 cursor.execute(
-                    "UPDATE store SET stock_level = stock_level + %s WHERE store_id = %s AND book_id = %s",
-                    (detail[1], order[1], detail[0])
+                    "SELECT password FROM \"user\" WHERE user_id = %s",
+                    (user_id,)
+                )
+                user = cursor.fetchone()
+                if user[0] != password:
+                    return error.error_authorization_fail()
+
+                cursor.execute(
+                    "SELECT is_paid, store_id FROM new_order WHERE order_id = %s AND user_id = %s FOR UPDATE",
+                    (order_id, user_id)
+                )
+                order = cursor.fetchone()
+                if order is None:
+                    return error.error_invalid_order_id(order_id)
+
+                if order[0]:
+                    return error.error_cannot_be_canceled(order_id)
+
+                cursor.execute(
+                    "UPDATE new_order SET status = 'canceled' WHERE order_id = %s",
+                    (order_id,)
                 )
 
-            self.conn.commit()
-            cursor.close()
+                cursor.execute(
+                    "SELECT book_id, count FROM new_order_detail WHERE order_id = %s",
+                    (order_id,)
+                )
+                for detail in cursor.fetchall():
+                    cursor.execute(
+                        "UPDATE store SET stock_level = stock_level + %s WHERE store_id = %s AND book_id = %s",
+                        (detail[1], order[1], detail[0])
+                    )
+
+                cursor.close()
+                return 200, "ok"
         except Exception as e:
             logging.error(f"Error canceling order: {e}")
             return 530, "{}".format(str(e))
-
-        return 200, "ok"
 
     def auto_cancel_expired_orders(self):
         try:

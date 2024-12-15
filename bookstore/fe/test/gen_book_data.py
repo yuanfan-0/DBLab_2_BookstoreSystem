@@ -13,6 +13,7 @@ class GenBook:
         self.seller = register_new_seller(self.user_id, self.password)
         code = self.seller.create_store(store_id)
         assert code == 200
+        self.book_id_stock_level = {}
         self.__init_book_list__()
 
     def __init_book_list__(self):
@@ -32,7 +33,6 @@ class GenBook:
         size = random.randint(1, max_book_count)
         books = book_db.get_book_info(start, size)
         book_id_exist = []
-        book_id_stock_level = {}
         for bk in books:
             if low_stock_level:
                 stock_level = random.randint(0, 100)
@@ -40,11 +40,12 @@ class GenBook:
                 stock_level = random.randint(2, 100)
             code = self.seller.add_book(self.store_id, stock_level, bk)
             assert code == 200
-            book_id_stock_level[bk.id] = stock_level
+            self.book_id_stock_level[bk.id] = stock_level
+
             book_id_exist.append(bk)
 
         for bk in book_id_exist:
-            stock_level = book_id_stock_level[bk.id]
+            stock_level = self.book_id_stock_level[bk.id]
             if stock_level > 1:
                 buy_num = random.randint(1, stock_level)
             else:

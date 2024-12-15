@@ -1,5 +1,6 @@
 from be.model import store
 import logging
+from be.model.db_transaction import DBTransaction
 
 class DBConn:
     def __init__(self):
@@ -12,6 +13,15 @@ class DBConn:
             "completed": "已完成",
             "canceled": "已取消"
         }
+
+    def transaction(self):
+        """
+        返回一个事务对象，用于管理数据库事务
+        使用方法:
+        with self.transaction():
+            # 在这里执行需要事务支持的操作
+        """
+        return DBTransaction(self)
 
     def user_id_exist(self, user_id):
         try:

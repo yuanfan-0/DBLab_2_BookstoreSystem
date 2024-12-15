@@ -120,3 +120,34 @@ def search_books():
     else:
         return jsonify({"code": code, "message": books}), code
 
+@bp_seller.route("/get_stock_level", methods=["POST"])
+def get_stock_level():
+    store_id: str = request.json.get("store_id")
+    book_id: str = request.json.get("book_id")
+    s = seller.Seller()
+    code, stock_level = s.get_stock_level(store_id, book_id)
+    return jsonify({"code": code, "stock_level": stock_level})
+
+@bp_seller.route("/add_stock_level_except", methods=["POST"])
+def add_stock_level_except():
+    user_id: str = request.json.get("user_id")
+    store_id: str = request.json.get("store_id")
+    book_id: str = request.json.get("book_id")
+    add_stock_level: int = request.json.get("add_stock_level")
+    s = seller.Seller()
+    code, message = s.add_stock_level_except(user_id, store_id, book_id, add_stock_level)
+    return jsonify({"message": message, "status_code": code})
+
+@bp_seller.route("/add_stock_level_delay", methods=["POST"])
+def add_stock_level_delay():
+    user_id: str = request.json.get("user_id")
+    store_id: str = request.json.get("store_id")
+    book_id: str = request.json.get("book_id")
+    add_stock_level: int = request.json.get("add_stock_level")
+    s = seller.Seller()
+    code, message = s.add_stock_level_delay(user_id, store_id, book_id, add_stock_level)
+    return jsonify({"message": message, "status_code": code})
+
+
+
+

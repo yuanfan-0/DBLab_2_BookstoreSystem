@@ -85,7 +85,14 @@ class Store:
 
     def init_indexes(self):
         try:
-            # 创建PostgreSQL索引
+            # 删除已有的索引（如果存在）
+            self.pg_cursor.execute("""
+                DROP INDEX IF EXISTS idx_store_book_id;
+                DROP INDEX IF EXISTS idx_store_store_book;
+                DROP INDEX IF EXISTS idx_store_book_info_gin;
+            """)
+
+            # 重新创建索引
             self.pg_cursor.execute("""
                 CREATE INDEX IF NOT EXISTS idx_store_book_id 
                 ON store(book_id);

@@ -104,3 +104,42 @@ class Seller:
         url = urljoin(self.url_prefix, "search")
         r = requests.post(url, json=json)
         return r.status_code, r.json().get("books", [])
+    
+    def get_stock_level(self, store_id: str, book_id: str) -> (int, int): # type: ignore
+        json = {
+            "store_id": store_id,
+            "book_id": book_id
+        }
+        url = urljoin(self.url_prefix, "get_stock_level")
+        headers = {"token": self.token}
+        r = requests.post(url, headers=headers, json=json)
+        response_json = r.json()
+        return response_json.get("code"), response_json.get("stock_level", -1)
+
+    def add_stock_level_except(self, user_id: str, store_id: str, book_id: str, add_stock_level: int) -> int:
+        # 模拟异常情况的方法
+        json = {
+            "user_id": user_id,
+            "store_id": store_id,
+            "book_id": book_id,
+            "add_stock_level": add_stock_level
+        }
+        # 发送请求到会抛出异常的端点
+        url = urljoin(self.url_prefix, "add_stock_level_except")
+        headers = {"token": self.token}
+        r = requests.post(url, headers=headers, json=json)
+        return r.status_code
+
+    def add_stock_level_delay(self, user_id: str, store_id: str, book_id: str, add_stock_level: int) -> int:
+        # 模拟延迟提交的方法
+        json = {
+            "user_id": user_id,
+            "store_id": store_id,
+            "book_id": book_id,
+            "add_stock_level": add_stock_level
+        }
+        # 发送请求到会延迟处理的端点
+        url = urljoin(self.url_prefix, "add_stock_level_delay")
+        headers = {"token": self.token}
+        r = requests.post(url, headers=headers, json=json)
+        return r.status_code

@@ -1,6 +1,7 @@
 import logging
 from be.model import error
 from be.model import db_conn
+import time
 
 class Seller(db_conn.DBConn):
     def __init__(self):
@@ -15,29 +16,28 @@ class Seller(db_conn.DBConn):
         stock_level: int,
     ):
         try:
-            # 检查用户是否存在
-            if not self.user_id_exist(user_id):
-                return error.error_non_exist_user_id(user_id)
-            # 检查商店是否存在
-            if not self.store_id_exist(store_id):
-                return error.error_non_exist_store_id(store_id)
-            # 检查书籍是否已经存在
-            if self.book_id_exist(store_id, book_id):
-                return error.error_exist_book_id(book_id)
+            with self.transaction() as tx:
+                # 检查用户是否存在
+                if not self.user_id_exist(user_id):
+                    return error.error_non_exist_user_id(user_id)
+                # 检查商店是否存在
+                if not self.store_id_exist(store_id):
+                    return error.error_non_exist_store_id(store_id)
+                # 检查书是否存在
+                if self.book_id_exist(store_id, book_id):
+                    return error.error_exist_book_id(book_id)
 
-            # 将书籍插入到 store 表中
-            cursor = self.conn.cursor()
-            cursor.execute(
-                "INSERT INTO store (store_id, book_id, book_info, stock_level) "
-                "VALUES (%s, %s, %s, %s)",
-                (store_id, book_id, book_json_str, stock_level),
-            )
-            self.conn.commit()
-            cursor.close()
+                # 将书籍插入到 store 表中
+                cursor = self.conn.cursor()
+                cursor.execute(
+                    "INSERT INTO store(store_id, book_id, book_info, stock_level) VALUES (%s, %s, %s, %s)",
+                    (store_id, book_id, book_json_str, stock_level)
+                )
+                cursor.close()
+                return 200, "ok"
         except Exception as e:
             logging.error(f"Error adding book: {str(e)}")
             return 530, "{}".format(str(e))
-        return 200, "ok"
 
     def add_stock_level(
         self, 
@@ -47,46 +47,48 @@ class Seller(db_conn.DBConn):
         add_stock_level: int
     ):
         try:
-            # 检查用户、商店和书籍是否存在
-            if not self.user_id_exist(user_id):
-                return error.error_non_exist_user_id(user_id)
-            if not self.store_id_exist(store_id):
-                return error.error_non_exist_store_id(store_id)
-            if not self.book_id_exist(store_id, book_id):
-                return error.error_non_exist_book_id(book_id)
+            with self.transaction() as tx:
+                # 检查用户是否存在
+                if not self.user_id_exist(user_id):
+                    return error.error_non_exist_user_id(user_id)
+                # 检查商店是否存在
+                if not self.store_id_exist(store_id):
+                    return error.error_non_exist_store_id(store_id)
+                # 检查书是否存在
+                if not self.book_id_exist(store_id, book_id):
+                    return error.error_non_exist_book_id(book_id)
 
-            # 更新库存数量
-            cursor = self.conn.cursor()
-            cursor.execute(
-                "UPDATE store SET stock_level = stock_level + %s "
-                "WHERE store_id = %s AND book_id = %s",
-                (add_stock_level, store_id, book_id),
-            )
-            self.conn.commit()
-            cursor.close()
+                # 更新书籍库存
+                cursor = self.conn.cursor()
+                cursor.execute(
+                    "UPDATE store SET stock_level = stock_level + %s WHERE store_id = %s AND book_id = %s",
+                    (add_stock_level, store_id, book_id)
+                )
+                cursor.close()
+                return 200, "ok"
         except Exception as e:
             logging.error(f"Error adding stock level: {str(e)}")
             return 530, "{}".format(str(e))
-        return 200, "ok"
 
     def create_store(self, user_id: str, store_id: str) -> (int, str): # type: ignore
         try:
-            # 检查用户是否存在
-            if not self.user_id_exist(user_id):
-                return error.error_non_exist_user_id(user_id)
-            # 检查商店是否已经存在
-            if self.store_id_exist(store_id):
-                return error.error_exist_store_id(store_id)
+            with self.transaction() as tx:
+                # 检查用户是否存在
+                if not self.user_id_exist(user_id):
+                    return error.error_non_exist_user_id(user_id)
+                # 检查商店是否已经存在
+                if self.store_id_exist(store_id):
+                    return error.error_exist_store_id(store_id)
 
-            # 创建商店，插入到 user_store 表中
-            cursor = self.conn.cursor()
-            cursor.execute(
-                "INSERT INTO user_store (store_id, user_id) "
-                "VALUES (%s, %s)",
-                (store_id, user_id),
-            )
-            self.conn.commit()
-            cursor.close()
+                # 创建商店，插入到 user_store 表中
+                cursor = self.conn.cursor()
+                cursor.execute(
+                    "INSERT INTO user_store (store_id, user_id) "
+                    "VALUES (%s, %s)",
+                    (store_id, user_id),
+                )
+                self.conn.commit()
+                cursor.close()
         except Exception as e:
             logging.error(f"Error creating store: {str(e)}")
             return 530, "{}".format(str(e))
@@ -218,3 +220,94 @@ class Seller(db_conn.DBConn):
             logging.error(f"Error querying all store orders: {str(e)}")
             return 530, "{}".format(str(e)), "None"
         return 200, "ok", str(all_store_orders)
+
+    def get_stock_level(self, store_id: str, book_id: str) -> (int, int): # type: ignore
+        """
+        获取指定商铺指定书籍的库存数量
+        :param store_id: 商铺ID
+        :param book_id: 书籍ID
+        :return: (code, stock_level)
+                code: 200 表示成功，否则表示失败
+                stock_level: 库存数量，失败时为-1
+        """
+        with self.transaction():
+            try:
+                if not self.store_id_exist(store_id):
+                    return error.error_non_exist_store_id(store_id), -1
+                
+                if not self.book_id_exist(store_id, book_id):
+                    return error.error_non_exist_book_id(book_id), -1
+
+                cursor = self.conn.cursor()
+                cursor.execute(
+                    "SELECT stock_level FROM store WHERE store_id = %s AND book_id = %s FOR UPDATE",
+                    (store_id, book_id)
+                )
+                row = cursor.fetchone()
+                cursor.close()
+
+                if row is None:
+                    return error.error_non_exist_book_id(book_id), -1
+                
+                return 200, row[0]
+            except Exception as e:
+                logging.error(f"Error getting stock level: {str(e)}")
+                return 530, -1
+
+    def add_stock_level_except(self, user_id: str, store_id: str, book_id: str, add_stock_level: int):
+        """用于测试的方法，在更新过程中抛出异常"""
+        try:
+            with self.transaction() as tx:
+                if not self.user_id_exist(user_id):
+                    return error.error_non_exist_user_id(user_id)
+                if not self.store_id_exist(store_id):
+                    return error.error_non_exist_store_id(store_id)
+                if not self.book_id_exist(store_id, book_id):
+                    return error.error_non_exist_book_id(book_id)
+
+                cursor = self.conn.cursor()
+                cursor.execute(
+                    "UPDATE store SET stock_level = stock_level + %s WHERE store_id = %s AND book_id = %s",
+                    (add_stock_level, store_id, book_id)
+                )
+                # 模拟异常
+                raise Exception("Simulated error for testing")
+                
+        except Exception as e:
+            return 530, "{}".format(str(e))
+
+    def add_stock_level_delay(self, user_id: str, store_id: str, book_id: str, add_stock_level: int):
+        """用于测试的方法，延迟提交更新"""
+        try:
+            with self.transaction() as tx:
+                if not self.user_id_exist(user_id):
+                    return error.error_non_exist_user_id(user_id)
+                if not self.store_id_exist(store_id):
+                    return error.error_non_exist_store_id(store_id)
+                if not self.book_id_exist(store_id, book_id):
+                    return error.error_non_exist_book_id(book_id)
+
+                cursor = self.conn.cursor()
+                # 先获取当前库存并加锁
+                cursor.execute(
+                    "SELECT stock_level FROM store WHERE store_id = %s AND book_id = %s FOR UPDATE",
+                    (store_id, book_id)
+                )
+                row = cursor.fetchone()
+                if row is None:
+                    return error.error_non_exist_book_id(book_id)
+
+                # 更新库存
+                cursor.execute(
+                    "UPDATE store SET stock_level = stock_level + %s WHERE store_id = %s AND book_id = %s",
+                    (add_stock_level, store_id, book_id)
+                )
+                
+                # 模拟延迟
+                time.sleep(1)
+                cursor.close()
+                return 200, "ok"
+                
+        except Exception as e:
+            logging.error(f"Error in add_stock_level_delay: {str(e)}")
+            return 530, "{}".format(str(e))
