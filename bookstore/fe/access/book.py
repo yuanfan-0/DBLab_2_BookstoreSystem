@@ -48,7 +48,9 @@ class BookDB:
         self.pg_cursor = self.pg_conn.cursor()
 
     def get_book_count(self):
-        return self.mongo_collection.count_documents({})
+        self.pg_cursor.execute("SELECT COUNT(*) FROM books")
+        count = self.pg_cursor.fetchone()[0]
+        return count
 
     def get_book_info(self, start, size):
         books = []
@@ -59,7 +61,10 @@ class BookDB:
             ORDER BY id
             OFFSET %s LIMIT %s
         """, (start, size))
+
+        print(f"back_start: {start}, back_size: {size}")
         rows = self.pg_cursor.fetchall()
+        print(f"back_rows: {len(rows)}") 
 
         for row in rows:
             book = Book()

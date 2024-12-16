@@ -4,9 +4,15 @@ import threading
 import psycopg2
 from pymongo import MongoClient
 
+import threading
+
 class Store:
     def __init__(self, postgredb_url="postgresql://postgres:123456@localhost:5432/bookstore", mongodb_url="mongodb://localhost:27017/", db_name="bookstore"):
+        # 初始化线程本地存储
+        self.thread_local = threading.local()
+
         # 连接 PostgreSQL 数据库
+        self.postgredb_url = postgredb_url
         self.pg_conn = psycopg2.connect(postgredb_url)
         self.pg_cursor = self.pg_conn.cursor()
 
@@ -19,6 +25,17 @@ class Store:
         self.client = MongoClient(mongodb_url)
         self.mongodb = self.client[db_name]
 
+    def get_thread_local_conn(self):
+        """为当前线程创建独立的数据库连接"""
+        if not hasattr(self.thread_local, "pg_conn"):
+            self.thread_local.pg_conn = psycopg2.connect(self.postgredb_url)
+            self.thread_local.pg_cursor = self.thread_local.pg_conn.cursor()
+        return self.thread_local.pg_conn, self.thread_local.pg_cursor
+
+    def get_db_conn(self):
+        """获取当前线程的数据库连接"""
+        pg_conn, pg_cursor = self.get_thread_local_conn()
+        return pg_conn, self.mongodb
     def init_tables(self):
         try:
             # 创建 user 表
@@ -109,8 +126,8 @@ class Store:
             logging.error(f"Error creating PostgreSQL indexes: {e}")
             self.pg_conn.rollback()
 
-    def get_db_conn(self):
-        return self.pg_conn, self.mongodb
+    # def get_db_conn_init(self):
+    #     return self.pg_conn, self.mongodb
 
 # 全局变量用于数据库同步
 database_instance: Store = None
@@ -121,6 +138,6 @@ def init_database(db_path):
     database_instance = Store()
     init_completed_event.set()
 
-def get_db_conn():
+def get_store():
     global database_instance
-    return database_instance.get_db_conn()
+    return database_instance

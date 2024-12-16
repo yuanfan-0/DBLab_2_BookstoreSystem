@@ -66,3 +66,45 @@ ORDER BY rank DESC;
    - 支持模糊匹配
    - 可以按相关性排序
    - 适合处理大量文本数据
+
+# 中文全文搜索配置安装与配置指南
+
+在本指南中，我们将介绍如何在 PostgreSQL 中安装和配置中文全文搜索支持，以便在书店项目中使用。
+
+## 安装 `zhparser` 插件
+
+1. **下载并编译 `zhparser`**：
+   - 确保你的系统上安装了 `PostgreSQL` 和 `pg_config` 工具。
+   - 使用以下命令下载并编译 `zhparser`：
+     ```bash
+     git clone https://github.com/amutu/zhparser.git
+     cd zhparser
+     make && sudo make install     ```
+
+2. **在 PostgreSQL 中创建 `zhparser` 扩展**：
+   - 使用 `psql` 连接到你的数据库，并创建 `zhparser` 扩展：
+     ```sql
+     psql -U postgres -d bookstore
+     CREATE EXTENSION zhparser;     ```
+
+## 创建中文文本搜索配置
+
+1. **创建中文配置**：
+   - 基于 `simple` 配置创建一个新的 `chinese` 配置：
+     ```sql
+     CREATE TEXT SEARCH CONFIGURATION chinese ( COPY = simple );     ```
+
+2. **添加解析器和词典**：
+   - 如果你有中文分词插件（如 `zhparser`），可以为 `chinese` 配置添加解析器和词典。
+   - 如果没有，你可以暂时使用 `simple` 配置的解析器和词典，但这可能无法提供准确的中文分词。
+
+3. **验证配置**：
+   - 确保新的 `chinese` 配置已创建：
+     ```sql
+     \dF     ```
+
+   - 你应该能在列表中看到 `chinese` 配置。
+
+## 修改代码
+
+确保在 `bookstore/be/model/store.py` 中的索引创建部分使用新的 `chinese` 配置：

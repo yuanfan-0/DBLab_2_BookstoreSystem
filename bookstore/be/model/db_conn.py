@@ -1,10 +1,12 @@
 from be.model import store
 import logging
 from be.model.db_transaction import DBTransaction
+import threading
 
 class DBConn:
     def __init__(self):
-        self.conn, self.mongodb = store.get_db_conn()
+        self.store = store.get_store()
+        self.conn, self.mongodb = self.store.get_db_conn()
         self.ORDER_STATUS = {
             "pending": "待支付",
             "paid": "已支付",
@@ -22,6 +24,7 @@ class DBConn:
             # 在这里执行需要事务支持的操作
         """
         return DBTransaction(self)
+
 
     def user_id_exist(self, user_id):
         try:

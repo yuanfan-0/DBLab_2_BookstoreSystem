@@ -6,6 +6,13 @@ from be.model import user
 
 bp_buyer = Blueprint("buyer", __name__, url_prefix="/buyer")
 
+@bp_buyer.route("/get_thread_local_conn", methods=["POST"])
+def get_thread_local_conn():
+    user_id: str = request.json.get("user_id")
+    b = Buyer()
+    conn, mongodb = b.store.get_db_conn()
+
+    return jsonify({"status": "connection established"})
 
 @bp_buyer.route("/new_order", methods=["POST"])
 def new_order():

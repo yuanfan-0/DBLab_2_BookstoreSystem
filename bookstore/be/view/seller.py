@@ -8,6 +8,15 @@ import json
 
 bp_seller = Blueprint("seller", __name__, url_prefix="/seller")
 
+@bp_seller.route("/get_thread_local_conn", methods=["POST"])
+def get_thread_local_conn():
+    user_id: str = request.json.get("user_id")
+    store_id: str = request.json.get("store_id")
+    s = seller.Seller()
+    conn, mongodb = s.store.get_db_conn()
+
+    return jsonify({"status": "connection established"})
+
 
 @bp_seller.route("/create_store", methods=["POST"])
 def seller_create_store():

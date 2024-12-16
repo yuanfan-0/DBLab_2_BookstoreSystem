@@ -3,7 +3,9 @@ import random
 from fe import conf
 from fe.access import book
 from fe.access.new_seller import register_new_seller
+import logging
 
+logging.basicConfig(level=logging.INFO)
 
 class GenBook:
     def __init__(self, user_id, store_id):
@@ -30,9 +32,13 @@ class GenBook:
         start = 0
         if rows > max_book_count:
             start = random.randint(0, rows - max_book_count)
-        size = random.randint(1, max_book_count)
+        size = random.randint(max_book_count//2, max_book_count)
         books = book_db.get_book_info(start, size)
         book_id_exist = []
+        print(f"rows:{rows}, start: {start}, size: {size}, books: {len(books)}")        
+
+        assert start >= 0 and size >= 0 and start + size <= rows
+
         for bk in books:
             if low_stock_level:
                 stock_level = random.randint(0, 100)

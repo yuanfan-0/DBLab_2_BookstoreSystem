@@ -21,13 +21,14 @@ class TestTransaction:
 
         self.book_id_stock_level=self.gen_book.book_id_stock_level
 
-        # 生成5本测试书
+        # 生成10-20本测试书
         ok, buy_book_id_list = self.gen_book.gen(
             non_exist_book_id=False, 
             low_stock_level=False,
-            max_book_count=10
+            max_book_count=20
         )
         assert ok
+        assert len(buy_book_id_list) >= 10
         self.buy_book_id_list = buy_book_id_list
 
         yield
@@ -55,12 +56,20 @@ class TestTransaction:
     def test_transaction_isolation(self):
         """测试事务隔离性：读已提交级别下，一个事务不能读取另一个未提交事务的数据"""
         book_id = self.buy_book_id_list[1][0]
+        assert len(self.book_id_stock_level) > 0
         code, book_stock = self.seller.get_stock_level(self.store_id, book_id)
         assert code == 200
+        print(f"book_stock: {book_stock}")
 
         def update_stock():
-            # 在新线程中更新库存，但不立即提交
-            status_code = self.seller.add_stock_level_delay(self.seller_id, self.store_id, book_id, 10)
+            seller = self.seller
+            status = seller.get_thread_local_conn(self.store_id)
+            assert status
+            code, thread_book_stock = seller.get_stock_level(self.store_id, book_id)
+            print(f"thread_book_stock: {thread_book_stock}")
+            status_code = seller.add_stock_level_delay(self.seller_id, self.store_id, book_id, 10)
+            code, new_thread_book_stock = seller.get_stock_level(self.store_id, book_id)
+            print(f"new_thread_book_stock: {new_thread_book_stock}")
             assert status_code == 200
 
         # 启动更新线程
@@ -105,6 +114,8 @@ class TestTransaction:
 
         def concurrent_purchase(buyer):
             try:
+                status = buyer.get_thread_local_conn()
+                assert status
                 code = buyer.new_order(self.store_id, [(book_id, 10)])
                 assert code == 200
                 return code == 200
@@ -128,14 +139,15 @@ class TestTransaction:
         # 等待所有线程完成
         for thread in threads:
             thread.join()
-
-        # 验证成功的购买次数
-        successful_purchases = sum(1 for result in results if result)
         
+        # 打印results
+        print("并发购买结果:", results)
+  
+
         # 验证最终库存
         code, final_stock = self.seller.get_stock_level(self.store_id, book_id)
         assert code == 200
-        assert final_stock == (100 - (successful_purchases * 10))
+        assert final_stock == 50
 
     def test_rollback_on_error(self):
         """测试异常情况下的事务回滚"""

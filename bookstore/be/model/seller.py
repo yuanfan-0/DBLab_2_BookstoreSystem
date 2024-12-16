@@ -6,6 +6,9 @@ import time
 class Seller(db_conn.DBConn):
     def __init__(self):
         super().__init__()
+        # 获取当前线程的数据库连接
+        self.conn, self.mongodb = self.store.get_db_conn()
+
 
     def add_book(
         self,
@@ -305,6 +308,8 @@ class Seller(db_conn.DBConn):
                 
                 # 模拟延迟
                 time.sleep(1)
+                logging.info(f"Updated stock level for book_id {book_id} in store {store_id}")
+                tx.commit()  # 手动提交事务
                 cursor.close()
                 return 200, "ok"
                 

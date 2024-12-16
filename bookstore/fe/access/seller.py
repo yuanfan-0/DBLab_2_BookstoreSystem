@@ -2,7 +2,7 @@ import requests
 from urllib.parse import urljoin
 from fe.access import book
 from fe.access.auth import Auth
-
+import threading
 
 class Seller:
     def __init__(self, url_prefix, seller_id: str, password: str):
@@ -15,6 +15,24 @@ class Seller:
         code, self.token = self.auth.login(self.seller_id, self.password, self.terminal)
         assert code == 200
 
+    def get_thread_local_conn(self, store_id):
+        """为当前线程创建独立的数据库连接"""
+        json = {
+            "user_id": self.seller_id,
+            "store_id": store_id,
+        }
+        url = urljoin(self.url_prefix, "get_thread_local_conn")
+        headers = {"token": self.token}
+        r = requests.post(url, headers=headers, json=json)
+        
+        # 处理返回的状态信息
+        response_json = r.json()
+        status = response_json.get("status")
+        if status == "connection established":
+            # 这里可以执行一些连接成功后的操作
+            return True
+        return False
+    
     def create_store(self, store_id):
         json = {
             "user_id": self.seller_id,

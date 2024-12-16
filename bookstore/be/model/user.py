@@ -37,6 +37,8 @@ class User(db_conn.DBConn):
 
     def __init__(self):
         super().__init__()
+        self.conn, self.mongodb = self.store.get_db_conn()
+
 
     def __check_token(self, user_id, db_token, token) -> bool:
         try:

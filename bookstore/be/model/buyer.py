@@ -9,6 +9,8 @@ class Buyer(db_conn.DBConn):
 
     def __init__(self):
         super().__init__()
+        self.conn, self.mongodb = self.store.get_db_conn()
+
 
     def user_id_exist(self, user_id):
         try:

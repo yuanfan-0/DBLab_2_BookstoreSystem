@@ -16,6 +16,23 @@ class Buyer:
         code, self.token = self.auth.login(self.user_id, self.password, self.terminal)
         assert code == 200
 
+    def get_thread_local_conn(self):
+        """为当前线程创建独立的数据库连接"""
+        json = {
+            "user_id": self.user_id,
+        }
+        url = urljoin(self.url_prefix, "get_thread_local_conn")
+        headers = {"token": self.token}
+        r = requests.post(url, headers=headers, json=json)
+        
+        # 处理返回的状态信息
+        response_json = r.json()
+        status = response_json.get("status")
+        if status == "connection established":
+            # 这里可以执行一些连接成功后的操作
+            return True
+        return False
+
     def new_order(self, store_id: str, book_id_and_count: [(str, int)]) -> (int, str): # type: ignore
         books = []
         for id_count_pair in book_id_and_count:
