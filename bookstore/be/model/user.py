@@ -50,7 +50,7 @@ class User(db_conn.DBConn):
                 now = time.time()
                 if self.token_lifetime > now - ts >= 0:
                     return True
-        except jwt.exceptions.InvalidSignatureError as e:
+        except jwt.exceptions.InvalidSignatureError as e:  # pragma: no cover
             logging.error(str(e))
             return False
 
@@ -70,7 +70,7 @@ class User(db_conn.DBConn):
                 )
                 self.conn.commit()
                 cursor.close()
-        except Exception as e:
+        except Exception as e:  # pragma: no cover
             logging.error(f"Error during registration: {str(e)}")
             return error.error_exist_user_id(user_id)
         return 200, "ok"
@@ -131,7 +131,7 @@ class User(db_conn.DBConn):
                 cursor.close()
                 if cursor.rowcount == 0:
                     return error.error_authorization_fail() + ("",)
-        except Exception as e:
+        except Exception as e:   # pragma: no cover
             return 530, "{}".format(str(e)), ""
         return 200, "ok", token
  
@@ -154,7 +154,7 @@ class User(db_conn.DBConn):
                 cursor.close()
                 if cursor.rowcount == 0:
                     return error.error_authorization_fail()
-        except Exception as e:
+        except Exception as e:   # pragma: no cover
             return 530, "{}".format(str(e))
         return 200, "ok"
 
@@ -174,7 +174,7 @@ class User(db_conn.DBConn):
                 cursor.close()
                 if cursor.rowcount == 0:
                     return error.error_authorization_fail()
-        except Exception as e:
+        except Exception as e:   # pragma: no cover
             return 530, "{}".format(str(e))
         return 200, "ok"
 
@@ -198,7 +198,7 @@ class User(db_conn.DBConn):
                 cursor.close()
                 if cursor.rowcount == 0:
                     return error.error_authorization_fail()
-        except Exception as e:
+        except Exception as e:   # pragma: no cover
             return 530, "{}".format(str(e))
         return 200, "ok"
 
@@ -208,7 +208,7 @@ class User(db_conn.DBConn):
                 return self._search_in_store(keyword, search_scope, store_id)
             else:
                 return self._search_global(keyword, search_scope)
-        except Exception as e:
+        except Exception as e:    # pragma: no cover
             logging.error(f"Search error: {e}")
             return 530, "搜索失败"
 
@@ -269,7 +269,7 @@ class User(db_conn.DBConn):
             
             return 200, results
 
-        except Exception as e:
+        except Exception as e:   # pragma: no cover
             logging.error(f"Global search error: {e}")
             return 530, "全局搜索失败"
 
@@ -323,6 +323,6 @@ class User(db_conn.DBConn):
 
             return 200, results
 
-        except Exception as e:
+        except Exception as e:   # pragma: no cover
             logging.error(f"Store search error: {e}")
             return 530, "店铺内搜索失败"

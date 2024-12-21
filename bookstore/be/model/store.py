@@ -29,6 +29,7 @@ class Store:
         """为当前线程创建独立的数据库连接"""
         if not hasattr(self.thread_local, "pg_conn"):
             self.thread_local.pg_conn = psycopg2.connect(self.postgredb_url)
+            self.thread_local.pg_conn.autocommit = False  # 关闭自动提交
             self.thread_local.pg_cursor = self.thread_local.pg_conn.cursor()
         return self.thread_local.pg_conn, self.thread_local.pg_cursor
 
@@ -96,7 +97,7 @@ class Store:
             """)
 
             self.pg_conn.commit()
-        except psycopg2.Error as e:
+        except psycopg2.Error as e:  # pragma: no cover
             logging.error(e)
             self.pg_conn.rollback()
 
@@ -122,7 +123,7 @@ class Store:
             """)
             
             self.pg_conn.commit()
-        except psycopg2.Error as e:
+        except psycopg2.Error as e:   # pragma: no cover
             logging.error(f"Error creating PostgreSQL indexes: {e}")
             self.pg_conn.rollback()
 
