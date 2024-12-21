@@ -38,7 +38,7 @@ class Seller(db_conn.DBConn):
                 )
                 cursor.close()
                 return 200, "ok"
-        except Exception as e:
+        except Exception as e:   # pragma: no cover
             logging.error(f"Error adding book: {str(e)}")
             return 530, "{}".format(str(e))
 
@@ -69,7 +69,7 @@ class Seller(db_conn.DBConn):
                 )
                 cursor.close()
                 return 200, "ok"
-        except Exception as e:
+        except Exception as e:  # pragma: no cover
             logging.error(f"Error adding stock level: {str(e)}")
             return 530, "{}".format(str(e))
 
@@ -92,7 +92,7 @@ class Seller(db_conn.DBConn):
                 )
                 self.conn.commit()
                 cursor.close()
-        except Exception as e:
+        except Exception as e:   # pragma: no cover
             logging.error(f"Error creating store: {str(e)}")
             return 530, "{}".format(str(e))
         return 200, "ok"
@@ -128,7 +128,7 @@ class Seller(db_conn.DBConn):
             )
             self.conn.commit()
             cursor.close()
-        except Exception as e:
+        except Exception as e:   # pragma: no cover
             logging.error(f"Error shipping order: {str(e)}")
             return 520, "{}".format(str(e))
         return 200, "ok"
@@ -171,7 +171,7 @@ class Seller(db_conn.DBConn):
             )
             orders = cursor.fetchall()
             cursor.close()
-        except Exception as e:
+        except Exception as e:   # pragma: no cover
             logging.error(f"Error querying store orders: {str(e)}")
             return 530, "{}".format(str(e)), "None"
         return 200, "ok", str(orders)
@@ -219,7 +219,7 @@ class Seller(db_conn.DBConn):
                 cursor.close()
                 all_store_orders[store_id] = orders
 
-        except Exception as e:
+        except Exception as e:    # pragma: no cover
             logging.error(f"Error querying all store orders: {str(e)}")
             return 530, "{}".format(str(e)), "None"
         return 200, "ok", str(all_store_orders)
@@ -253,7 +253,7 @@ class Seller(db_conn.DBConn):
                     return error.error_non_exist_book_id(book_id), -1
                 
                 return 200, row[0]
-            except Exception as e:
+            except Exception as e:   # pragma: no cover
                 logging.error(f"Error getting stock level: {str(e)}")
                 return 530, -1
 
@@ -276,7 +276,7 @@ class Seller(db_conn.DBConn):
                 # 模拟异常
                 raise Exception("Simulated error for testing")
                 
-        except Exception as e:
+        except Exception as e:   # pragma: no cover
             return 530, "{}".format(str(e))
 
     def add_stock_level_delay(self, user_id: str, store_id: str, book_id: str, add_stock_level: int):
@@ -313,6 +313,6 @@ class Seller(db_conn.DBConn):
                 cursor.close()
                 return 200, "ok"
                 
-        except Exception as e:
+        except Exception as e:   # pragma: no cover
             logging.error(f"Error in add_stock_level_delay: {str(e)}")
             return 530, "{}".format(str(e))

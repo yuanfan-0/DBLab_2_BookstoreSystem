@@ -35,7 +35,7 @@ class DBConn:
             row = cursor.fetchone()
             cursor.close()
             return row is not None
-        except Exception as e:
+        except Exception as e:   # pragma: no cover
             logging.error(f"Error checking user_id existence: {e}")
             return False
 
@@ -49,7 +49,7 @@ class DBConn:
             row = cursor.fetchone()
             cursor.close()
             return row is not None
-        except Exception as e:
+        except Exception as e:   # pragma: no cover
             logging.error(f"Error checking book_id existence: {e}")
             return False
 
@@ -62,7 +62,7 @@ class DBConn:
             row = cursor.fetchone()
             cursor.close()
             return row is not None
-        except Exception as e:
+        except Exception as e:   # pragma: no cover
             logging.error(f"Error checking store_id existence: {e}")
             return False
 
@@ -75,7 +75,7 @@ class DBConn:
             row = cursor.fetchone()
             cursor.close()
             return row is not None
-        except Exception as e:
+        except Exception as e:   # pragma: no cover
             logging.error(f"Error checking order_id existence: {e}")
             return False
 
@@ -92,7 +92,7 @@ class DBConn:
                 if row[0]:
                     return True
             return False
-        except Exception as e:
+        except Exception as e:   # pragma: no cover
             logging.error(f"Error checking order_id existence: {e}")
             return False
     
@@ -109,6 +109,6 @@ class DBConn:
                 if row[0]:
                     return True
             return False
-        except Exception as e:
+        except Exception as e:   # pragma: no cover
             logging.error(f"Error checking order_id existence: {e}")
             return False

@@ -86,7 +86,7 @@ class BookDB:
             book.tags = row[15]
 
             # 从MongoDB中获取图片数据
-            mongo_row = self.mongo_collection.find_one({"_id": book.id})
+            mongo_row = self.mongo_collection.find_one({"id": book.id})
             if mongo_row:
                 picture_binary = mongo_row.get('picture')
                 picture_base64 = base64.b64encode(picture_binary).decode('utf-8')

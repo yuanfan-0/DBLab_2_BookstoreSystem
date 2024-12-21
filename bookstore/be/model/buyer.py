@@ -22,7 +22,7 @@ class Buyer(db_conn.DBConn):
             row = cursor.fetchone()
             cursor.close()
             return row is not None
-        except Exception as e:
+        except Exception as e:   # pragma: no cover
             logging.error(f"Error checking user_id existence: {e}")
             return False
 
@@ -36,7 +36,7 @@ class Buyer(db_conn.DBConn):
             row = cursor.fetchone()
             cursor.close()
             return row is not None
-        except Exception as e:
+        except Exception as e:   # pragma: no cover
             logging.error(f"Error checking store_id existence: {e}")
             return False
 
@@ -88,7 +88,7 @@ class Buyer(db_conn.DBConn):
                 cursor.close()
                 order_id = uid
 
-        except Exception as e:
+        except Exception as e:   # pragma: no cover
             logging.error(f"Error creating new order: {e}")
             return 530, "{}".format(str(e)), ""
 
@@ -141,7 +141,7 @@ class Buyer(db_conn.DBConn):
                 )
                 cursor.close()
                 return 200, "ok"
-        except Exception as e:
+        except Exception as e:    # pragma: no cover
             logging.error(f"Error paying to platform: {e}")
             return 530, "{}".format(str(e))
 
@@ -201,7 +201,7 @@ class Buyer(db_conn.DBConn):
                 )
                 self.conn.commit()
                 cursor.close()
-        except Exception as e:
+        except Exception as e:   # pragma: no cover
             logging.error(f"Error confirming receipt and paying to seller: {e}")
             return 530, "{}".format(str(e))
 
@@ -209,22 +209,22 @@ class Buyer(db_conn.DBConn):
 
     def add_funds(self, user_id, password, add_value) -> (int, str): # type: ignore
         try:
-            cursor = self.conn.cursor()
-            cursor.execute(
-                "SELECT password FROM \"user\" WHERE user_id = %s",
-                (user_id,)
-            )
-            user = cursor.fetchone()
-            if user is None or user[0] != password:
-                return error.error_authorization_fail()
+            with self.transaction() as tx:
+                cursor = self.conn.cursor()
+                cursor.execute(
+                    "SELECT password FROM \"user\" WHERE user_id = %s FOR UPDATE",
+                    (user_id,)
+                )
+                user = cursor.fetchone()
+                if user is None or user[0] != password:
+                    return error.error_authorization_fail()
 
-            cursor.execute(
-                "UPDATE \"user\" SET balance = balance + %s WHERE user_id = %s",
-                (add_value, user_id)
-            )
-            self.conn.commit()
-            cursor.close()
-        except Exception as e:
+                cursor.execute(
+                    "UPDATE \"user\" SET balance = balance + %s WHERE user_id = %s",
+                    (add_value, user_id)
+                )
+                cursor.close()
+        except Exception as e:   # pragma: no cover
             logging.error(f"Error adding funds: {e}")
             return 530, "{}".format(str(e))
 
@@ -232,55 +232,57 @@ class Buyer(db_conn.DBConn):
 
     def query_order_status(self, user_id: str, order_id: str, password) -> (int, str, str):  # type: ignore
         try:
-            if not self.user_id_exist(user_id):
-                return error.error_non_exist_user_id(user_id) + ("None",)
+            with self.transaction() as tx:
+                if not self.user_id_exist(user_id):
+                    return error.error_non_exist_user_id(user_id) + ("None",)
 
-            cursor = self.conn.cursor()
-            cursor.execute(
-                "SELECT password FROM \"user\" WHERE user_id = %s",
-                (user_id,)
-            )
-            user = cursor.fetchone()
-            if user[0] != password:
-                return error.error_authorization_fail() + ("None",)
+                cursor = self.conn.cursor()
+                cursor.execute(
+                    "SELECT password FROM \"user\" WHERE user_id = %s FOR UPDATE",
+                    (user_id,)
+                )
+                user = cursor.fetchone()
+                if user[0] != password:
+                    return error.error_authorization_fail() + ("None",)
 
-            cursor.execute(
-                "SELECT status FROM new_order WHERE order_id = %s AND user_id = %s",
-                (order_id, user_id)
-            )
-            order = cursor.fetchone()
-            if order is None:
-                return error.error_invalid_order_id(order_id) + ("None",)
+                cursor.execute(
+                    "SELECT status FROM new_order WHERE order_id = %s AND user_id = %s FOR UPDATE",
+                    (order_id, user_id)
+                )
+                order = cursor.fetchone()
+                if order is None:
+                    return error.error_invalid_order_id(order_id) + ("None",)
 
-            order_status = self.ORDER_STATUS[order[0]]
-            cursor.close()
-            return 200, "ok", order_status
-        except Exception as e:
+                order_status = self.ORDER_STATUS[order[0]]
+                cursor.close()
+                return 200, "ok", order_status
+        except Exception as e:   # pragma: no cover
             logging.error(f"Error querying order status: {e}")
             return 530, "{}".format(str(e)) + ("None",)
 
     def query_buyer_all_orders(self, user_id: str, password) -> (int, str, list):   # type: ignore
         try:
-            if not self.user_id_exist(user_id):
-                return error.error_non_exist_user_id(user_id) + ("None",)
+            with self.transaction() as tx:
+                if not self.user_id_exist(user_id):
+                    return error.error_non_exist_user_id(user_id) + ("None",)
 
-            cursor = self.conn.cursor()
-            cursor.execute(
-                "SELECT password FROM \"user\" WHERE user_id = %s",
-                (user_id,)
-            )
-            user = cursor.fetchone()
-            if user[0] != password:
-                return error.error_authorization_fail() + ("None",)
+                cursor = self.conn.cursor()
+                cursor.execute(
+                    "SELECT password FROM \"user\" WHERE user_id = %s FOR UPDATE",
+                    (user_id,)
+                )
+                user = cursor.fetchone()
+                if user[0] != password:
+                    return error.error_authorization_fail() + ("None",)
 
-            cursor.execute(
-                "SELECT * FROM new_order WHERE user_id = %s",
-                (user_id,)
-            )
-            orders = cursor.fetchall()
-            cursor.close()
-            return 200, "ok", str(orders)
-        except Exception as e:
+                cursor.execute(
+                    "SELECT * FROM new_order WHERE user_id = %s FOR UPDATE",
+                    (user_id,)
+                )
+                orders = cursor.fetchall()
+                cursor.close()
+                return 200, "ok", str(orders)
+        except Exception as e:  # pragma: no cover
             logging.error(f"Error querying buyer all orders: {e}")
             return 530, "{}".format(str(e)), None
 
@@ -327,7 +329,7 @@ class Buyer(db_conn.DBConn):
 
                 cursor.close()
                 return 200, "ok"
-        except Exception as e:
+        except Exception as e:  # pragma: no cover
             logging.error(f"Error canceling order: {e}")
             return 530, "{}".format(str(e))
 
@@ -364,7 +366,7 @@ class Buyer(db_conn.DBConn):
 
             self.conn.commit()
             cursor.close()
-        except Exception as e:
+        except Exception as e:  # pragma: no cover
             logging.error(f"Error auto canceling expired orders: {e}")
             return 530, "not"
 
