@@ -11,7 +11,7 @@ class DBTransaction:
             self.conn.set_isolation_level(ISOLATION_LEVEL_READ_COMMITTED)
             self.transaction_status = True
             return self
-        except psycopg2.Error as e:  # pragma: no cover
+        except psycopg2.Error as e:
             return error.db_operation_error(e)
 
     def __exit__(self, exc_type, exc_val, exc_tb):
@@ -20,7 +20,7 @@ class DBTransaction:
                 self.conn.commit()
             else:
                 self.conn.rollback()
-        except psycopg2.Error as e:   # pragma: no cover
+        except psycopg2.Error as e:
             self.conn.rollback()
             return error.db_operation_error(e)
         finally:
@@ -32,7 +32,7 @@ class DBTransaction:
             if self.transaction_status:
                 self.conn.commit()
                 self.transaction_status = False
-        except psycopg2.Error as e:   # pragma: no cover
+        except psycopg2.Error as e:
             return error.db_operation_error(e)
         
     def rollback(self):

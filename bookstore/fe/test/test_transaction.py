@@ -116,7 +116,7 @@ class TestTransaction:
             try:
                 status = buyer.get_thread_local_conn()
                 assert status
-                code, _ = buyer.new_order(self.store_id, [(book_id, 10)])
+                code = buyer.new_order(self.store_id, [(book_id, 10)])
                 assert code == 200
                 return code == 200
             except Exception as e:
@@ -163,7 +163,7 @@ class TestTransaction:
         assert code == 200
 
         # 尝试购买超出库存的数量
-        code, _ = self.buyer.new_order(self.store_id, [(book_id, 150)])
+        code = self.buyer.new_order(self.store_id, [(book_id, 150)])
         assert code != 200  # 应该失败
 
         # 验证库存是否保持不变（回滚）
